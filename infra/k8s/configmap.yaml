@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: invenflow-config
+  namespace: invenflow
+data:
+  # Service URLs (internal cluster DNS)
+  AUTH_SERVICE_URL: "http://auth-service:3001"
+  INVENTORY_SERVICE_URL: "http://inventory-service:3002"
+  ORDERS_SERVICE_URL: "http://orders-service:3003"
+  REPORTING_SERVICE_URL: "http://reporting-service:3004"
+
+  # Infrastructure URLs
+  KAFKA_BROKER: "kafka:29092"
+  REDIS_URL: "redis://redis:6379"
+  ELASTICSEARCH_URL: "http://elasticsearch:9200"
+
+  # Ports
+  AUTH_PORT: "3001"
+  INVENTORY_PORT: "3002"
+  ORDERS_PORT: "3003"
+  REPORTING_PORT: "3004"
+  GATEWAY_PORT: "3000"
+
+  # CORS
+  CORS_ORIGINS: "http://localhost:5173,https://invenflow.yourdomain.com"

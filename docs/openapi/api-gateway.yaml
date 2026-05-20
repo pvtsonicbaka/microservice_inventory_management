@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: API Gateway – Route Map
+  description: |
+    All client requests go through the API Gateway.
+    The gateway validates JWT and proxies to the correct service.
+  version: 1.0.0
+
+x-gateway-routes:
+  - path: /auth/*
+    upstream: http://auth-service:3001
+    auth: false
+
+  - path: /products/*
+    upstream: http://inventory-service:3002
+    auth: true
+    roles: [admin, manager, viewer]
+
+  - path: /warehouses/*
+    upstream: http://inventory-service:3002
+    auth: true
+    roles: [admin, manager]
+
+  - path: /stock/*
+    upstream: http://inventory-service:3002
+    auth: true
+    roles: [admin, manager]
+
+  - path: /orders/*
+    upstream: http://orders-service:3003
+    auth: true
+    roles: [admin, manager, viewer]
+
+  - path: /search/*
+    upstream: http://reporting-service:3004
+    auth: true
+    roles: [admin, manager, viewer]
+
+  - path: /reports/*
+    upstream: http://reporting-service:3004
+    auth: true
+    roles: [admin]
+
+paths:
+  /health:
+    get:
+      summary: Gateway health check
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  services:
+                    type: object
+                    properties:
+                      auth: { type: string, enum: [up, down] }
+                      inventory: { type: string, enum: [up, down] }
+                      orders: { type: string, enum: [up, down] }
+                      reporting: { type: string, enum: [up, down] }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

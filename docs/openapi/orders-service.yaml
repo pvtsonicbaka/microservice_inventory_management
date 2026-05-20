@@ -1,0 +1,154 @@
+openapi: 3.0.3
+info:
+  title: Orders Service API
+  version: 1.0.0
+
+security:
+  - bearerAuth: []
+
+paths:
+  /orders:
+    get:
+      summary: List orders (admin sees all, user sees own)
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [PENDING, CONFIRMED, FAILED, CANCELLED, SHIPPED]
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Order" }
+                  total: { type: integer }
+
+    post:
+      summary: Place a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "202":
+          description: Order accepted, processing via saga
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400": { description: Invalid input }
+
+  /orders/{id}:
+    get:
+      summary: Get order by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404": { description: Order not found }
+
+  /orders/{id}/cancel:
+    post:
+      summary: Cancel an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "409": { description: Order cannot be cancelled in current status }
+
+  /orders/{id}/status:
+    get:
+      summary: Get order status + saga steps
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderId: { type: string }
+                  status: { type: string }
+                  sagaSteps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        step: { type: string }
+                        status: { type: string, enum: [PENDING, SUCCESS, FAILED] }
+                        timestamp: { type: string, format: date-time }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, FAILED, CANCELLED, SHIPPED]
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+        total: { type: number }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    OrderItem:
+      type: object
+      properties:
+        productId: { type: string, format: uuid }
+        quantity: { type: integer }
+        price: { type: number }
+
+    OrderInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1 }
