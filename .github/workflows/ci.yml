@@ -25,10 +25,10 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+          cache-dependency-path: package-lock.json
 
       - name: Install root dependencies
         run: npm ci
-        cache-dependency-path: package-lock.json
 
       - name: Install service dependencies
         run: npm ci
