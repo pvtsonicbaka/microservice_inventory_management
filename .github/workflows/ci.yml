@@ -34,6 +34,13 @@ jobs:
         run: npm ci
         working-directory: services/${{ matrix.service }}
 
+      - name: Generate Prisma client
+        run: |
+          if [ -f "prisma/schema.prisma" ]; then
+            npx prisma generate
+          fi
+        working-directory: services/${{ matrix.service }}
+
       - name: Type check
         run: npx tsc --noEmit
         working-directory: services/${{ matrix.service }}
@@ -80,6 +87,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: services/auth-service
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: services/auth-service
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/auth_db
 
       - name: Push schema
         run: npx prisma db push --skip-generate
