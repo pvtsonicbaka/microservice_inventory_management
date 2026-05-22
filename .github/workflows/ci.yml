@@ -34,10 +34,6 @@ jobs:
         run: npm ci
         working-directory: services/${{ matrix.service }}
 
-      - name: Generate Prisma client (if applicable)
-        run: npx prisma generate 2>/dev/null || true
-        working-directory: services/${{ matrix.service }}
-
       - name: Type check
         run: npx tsc --noEmit
         working-directory: services/${{ matrix.service }}
