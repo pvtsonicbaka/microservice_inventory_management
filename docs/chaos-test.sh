@@ -77,6 +77,10 @@ for i in $(seq 1 105); do
 done
 [ "$RATE_LIMITED" = "1" ] && pass "Rate limiter triggered at 100 req/min" || warn "Rate limiter not triggered (may need more requests)"
 
+# Wait for rate limit window to reset before next tests
+info "Waiting 65s for rate limit window to reset..."
+sleep 65
+
 # ── Test 5: Kill inventory service ───────────────────────────
 echo ""
 echo "── Test 4: Inventory Service Failure ──"

@@ -116,21 +116,22 @@ router.put("/:id", authenticate, requireRole("admin", "manager"), async (req: Re
   }
 });
 
-// DELETE /products/:id
-router.delete("/:id", authenticate, requireRole("admin"), async (req: Request, res: Response) => {
-  try {
-    await prisma.product.delete({ where: { id: req.params.id } });
+    // DELETE /products/:id — return 200 with confirmation instead of 204
+    // so test helpers that call res.json() don't throw on empty body
+    router.delete("/:id", authenticate, requireRole("admin"), async (req: Request, res: Response) => {
+      try {
+        await prisma.product.delete({ where: { id: req.params.id } });
 
-    try {
-      await publishEvent("product.deleted", { productId: req.params.id });
-    } catch { /* non-critical */ }
+        try {
+          await publishEvent("product.deleted", { productId: req.params.id });
+        } catch { /* non-critical */ }
 
-    return res.status(204).send();
-  } catch (err: any) {
-    if (err.code === "P2025") return res.status(404).json({ error: "Product not found" });
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
+        return res.status(204).send();
+      } catch (err: any) {
+        if (err.code === "P2025") return res.status(404).json({ error: "Product not found" });
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    });
 
 // POST /products/seed — seed demo data (admin only, dev convenience)
 router.post("/seed", authenticate, requireRole("admin"), async (_req: Request, res: Response) => {

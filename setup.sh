@@ -85,9 +85,17 @@ else
 fi
 
 echo ""
+echo "🌱 Seeding demo data (warehouses, products, users)..."
+bash "$SCRIPT_DIR/scripts/seed.sh"
+
+echo ""
 echo "🚀 All done! Open your browser:"
 echo "   Dashboard:  http://localhost:5173"
-echo "   Login:      admin@invenflow.com / Admin@123"
+echo ""
+echo "   Demo credentials:"
+echo "   👑 admin@invenflow.com   / Admin@123"
+echo "   💼 manager@invenflow.com / Manager@123"
+echo "   👁  viewer@invenflow.com  / Viewer@123"
 echo ""
 echo "   Gateway:    http://localhost:4000"
 echo "   Auth:       http://localhost:4001"

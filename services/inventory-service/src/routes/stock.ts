@@ -4,7 +4,9 @@ import prisma from "../lib/prisma";
 import { authenticate, requireRole } from "../middleware/auth";
 import { publishEvent } from "../lib/kafka";
 
-const router = Router();
+// ── Router mounted at /products/:id ──────────────────────────
+// Handles: GET /products/:id/stock  and  PATCH /products/:id/stock
+export const productStockRouter = Router({ mergeParams: true });
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -14,26 +16,8 @@ const stockUpdateSchema = z.object({
   warehouseId: z.string().uuid(),
 });
 
-// GET /stock/alerts — must be defined BEFORE /:id/stock to avoid route conflict
-router.get("/alerts", authenticate, requireRole("admin", "manager"), async (_req: Request, res: Response) => {
-  const alerts = await prisma.stockAlert.findMany({
-    include: { product: { select: { name: true, sku: true } } },
-    orderBy: { triggeredAt: "desc" },
-    take: 50,
-  });
-
-  return res.json(
-    alerts.map((a) => ({
-      productId: a.productId,
-      productName: a.product.name,
-      threshold: a.threshold,
-      triggeredAt: a.triggeredAt,
-    }))
-  );
-});
-
 // GET /products/:id/stock
-router.get("/:id/stock", authenticate, async (req: Request, res: Response) => {
+productStockRouter.get("/stock", authenticate, async (req: Request, res: Response) => {
   const stock = await prisma.stock.findMany({
     where: { productId: req.params.id },
     include: { warehouse: true },
@@ -53,7 +37,7 @@ router.get("/:id/stock", authenticate, async (req: Request, res: Response) => {
 });
 
 // PATCH /products/:id/stock  (atomic update with optimistic locking)
-router.patch("/:id/stock", authenticate, requireRole("admin", "manager"), async (req: Request, res: Response) => {
+productStockRouter.patch("/stock", authenticate, requireRole("admin", "manager"), async (req: Request, res: Response) => {
   const parsed = stockUpdateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -81,7 +65,7 @@ router.patch("/:id/stock", authenticate, requireRole("admin", "manager"), async 
         create: { productId: req.params.id, warehouseId, quantity: newQuantity },
       });
 
-      // trigger low stock alert only if none fired in the last hour
+      // Trigger low-stock alert only if none fired in the last hour
       if (newQuantity <= LOW_STOCK_THRESHOLD) {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         const recent = await tx.stockAlert.findFirst({
@@ -95,7 +79,6 @@ router.patch("/:id/stock", authenticate, requireRole("admin", "manager"), async 
               currentStock: newQuantity,
             },
           });
-          // Publish event so reporting-service indexes it
           const product = await tx.product.findUnique({
             where: { id: req.params.id },
             select: { name: true },
@@ -121,4 +104,25 @@ router.patch("/:id/stock", authenticate, requireRole("admin", "manager"), async 
   }
 });
 
-export default router;
+// ── Router mounted at /stock ──────────────────────────────────
+// Handles: GET /stock/alerts
+export const stockAlertsRouter = Router();
+
+// GET /stock/alerts
+stockAlertsRouter.get("/alerts", authenticate, requireRole("admin", "manager"), async (_req: Request, res: Response) => {
+  const alerts = await prisma.stockAlert.findMany({
+    include: { product: { select: { name: true, sku: true } } },
+    orderBy: { triggeredAt: "desc" },
+    take: 50,
+  });
+
+  return res.json(
+    alerts.map((a) => ({
+      productId: a.productId,
+      productName: a.product.name,
+      threshold: a.threshold,
+      currentStock: a.currentStock,
+      triggeredAt: a.triggeredAt,
+    }))
+  );
+});

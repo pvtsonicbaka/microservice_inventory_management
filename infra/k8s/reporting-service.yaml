@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: reporting-service
-          image: your-registry/reporting-service:latest
+          image: ghcr.io/pvtsonicbaka/microservice_inventory_management/reporting-service:latest
           ports:
             - containerPort: 3004
           env:

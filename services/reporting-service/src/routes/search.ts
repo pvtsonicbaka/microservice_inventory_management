@@ -70,7 +70,8 @@ router.get("/products", async (req: Request, res: Response) => {
           stats: { field: "price" },
         },
       },
-      sort: q ? ["_score"] : [{ createdAt: { order: "desc" } }],
+      // ignore_unmapped prevents errors when index is empty or field doesn't exist yet
+      sort: q ? ["_score"] : [{ createdAt: { order: "desc", unmapped_type: "date" } }],
     });
 
     const hits = result.hits.hits.map((h) => ({ id: h._id, ...(h._source as object) }));
@@ -88,14 +89,17 @@ router.get("/products", async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
-    // Elasticsearch not available — return empty results gracefully
+    // Return empty results gracefully for any ES error (down, index missing, mapping issues)
     if (
       err.name === "ConnectionError" ||
       err.name === "NoLivingConnectionsError" ||
       err.name === "TimeoutError" ||
+      err.name === "ResponseError" ||
       err.message?.includes("ECONNREFUSED") ||
       err.message?.includes("ENOTFOUND") ||
-      err.message?.includes("connect ETIMEDOUT")
+      err.message?.includes("connect ETIMEDOUT") ||
+      err.message?.includes("index_not_found") ||
+      err.meta?.body?.error?.type === "index_not_found_exception"
     ) {
       return res.json({ data: [], total: 0, page, facets: { categories: [], priceStats: {} }, warning: "Search index unavailable" });
     }

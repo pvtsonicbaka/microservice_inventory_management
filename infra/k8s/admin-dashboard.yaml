@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: admin-dashboard
-          image: your-registry/admin-dashboard:latest
+          image: ghcr.io/pvtsonicbaka/microservice_inventory_management/admin-dashboard:latest
           ports:
             - containerPort: 80
           readinessProbe:

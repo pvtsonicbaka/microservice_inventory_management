@@ -50,12 +50,17 @@ export async function connectKafka() {
           await prisma.sagaLog.create({
             data: { orderId: payload.orderId, step: "stock.updated", status: "SUCCESS", payload },
           });
+          // FIX: fetch the full order so we can include userId, total, and items
+          // in the order.confirmed event — downstream services (inventory, reporting) need them
           const order = await prisma.order.findUnique({
             where: { id: payload.orderId },
             include: { items: true },
           });
           await publishEvent("order.confirmed", {
             orderId: payload.orderId,
+            userId: order?.userId ?? "unknown",
+            total: Number(order?.total ?? 0),
+            confirmedAt: new Date().toISOString(),
             items: order?.items.map((i: { productId: string; quantity: number }) => ({ productId: i.productId, quantity: i.quantity })) ?? [],
           }, correlationId);
           logger.info("Order confirmed", { correlationId, orderId: payload.orderId });

@@ -24,7 +24,8 @@ async function req(method: string, path: string, token: string, body?: object) {
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  return { status: res.status, body: await res.json() };
+  const text = await res.text();
+  return { status: res.status, body: text ? JSON.parse(text) : {} };
 }
 
 let viewerToken = "";

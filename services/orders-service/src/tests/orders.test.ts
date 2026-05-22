@@ -232,18 +232,25 @@ describe("Orders Service", () => {
   // ── POST /orders/:id/cancel ──────────────────────────────────
   describe("POST /orders/:id/cancel", () => {
     before(async () => {
-      // place a fresh order to cancel
-      if (!productId) return;
+      // Use env product if available, otherwise skip cancel tests
+      const pid = productId || process.env.TEST_PRODUCT_ID || "";
+      if (!pid) return;
       const { body } = await req("POST", "/orders", userAToken, {
-        items: [{ productId, quantity: 1 }],
+        items: [{ productId: pid, quantity: 1 }],
       });
-      pendingOrderId = body.id;
+      if (body.id) {
+        pendingOrderId = body.id;
+        // Wait up to 3s for saga — cancel works on PENDING or CONFIRMED
+        await wait(3000);
+      }
     });
 
     test("returns 404 for non-existent order", async () => {
-      const { status } = await req("POST", "/orders/00000000-0000-0000-0000-000000000000/cancel", userAToken);
-      // 404 = order not found, 400 = Prisma UUID validation (both mean order doesn't exist)
-      assert.ok([400, 404].includes(status), `Expected 400 or 404, got ${status}`);
+      const res = await fetch(`${GATEWAY}/orders/00000000-0000-0000-0000-000000000000/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${userAToken}` },
+      });
+      assert.ok([400, 404].includes(res.status), `Expected 400 or 404, got ${res.status}`);
     });
 
     test("returns 403 when another user tries to cancel", async () => {

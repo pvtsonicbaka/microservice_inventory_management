@@ -80,8 +80,11 @@ async function proxy(target: string, req: Request, res: Response, overridePath?:
       timeout: 10000,
       validateStatus: () => true,
     });
+    // Echo correlation ID back so clients can trace their request
+    res.setHeader(CORRELATION_HEADER, correlationId);
     res.status(response.status).json(response.data);
   } catch (err: any) {
+    res.setHeader(CORRELATION_HEADER, correlationId);
     if (err.code === "ECONNABORTED") {
       logger.warn("Gateway timeout", { correlationId, target });
       return res.status(504).json({ error: "Gateway timeout", correlationId });

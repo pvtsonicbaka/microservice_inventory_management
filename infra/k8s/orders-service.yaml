@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: orders-service
-          image: your-registry/orders-service:latest
+          image: ghcr.io/pvtsonicbaka/microservice_inventory_management/orders-service:latest
           ports:
             - containerPort: 3003
           env:

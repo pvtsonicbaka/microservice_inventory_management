@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: your-registry/api-gateway:latest
+          image: ghcr.io/pvtsonicbaka/microservice_inventory_management/api-gateway:latest
           ports:
             - containerPort: 3000
           env:

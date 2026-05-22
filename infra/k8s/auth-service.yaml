@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: your-registry/auth-service:latest   # replace with your image
+          image: ghcr.io/pvtsonicbaka/microservice_inventory_management/auth-service:latest
           ports:
             - containerPort: 3001
           env:

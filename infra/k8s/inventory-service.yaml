@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: inventory-service
-          image: your-registry/inventory-service:latest
+          image: ghcr.io/pvtsonicbaka/microservice_inventory_management/inventory-service:latest
           ports:
             - containerPort: 3002
           env:

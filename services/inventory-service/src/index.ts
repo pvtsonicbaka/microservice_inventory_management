@@ -1,6 +1,6 @@
 import express from "express";
 import productsRouter from "./routes/products";
-import stockRouter from "./routes/stock";
+import { productStockRouter, stockAlertsRouter } from "./routes/stock";
 import warehousesRouter from "./routes/warehouses";
 import { connectKafka, consumer, producer } from "./lib/kafka";
 import { correlationMiddleware, getCorrelationId } from "./middleware/correlation";
@@ -26,8 +26,10 @@ app.use((req, res, next) => {
 
 app.get("/health", (_, res) => res.json({ status: "ok", service: "inventory-service" }));
 app.use("/products", productsRouter);
-app.use("/products", stockRouter);
-app.use("/stock", stockRouter);
+// Mount per-product stock routes under /products/:id — mergeParams lets them read :id
+app.use("/products/:id", productStockRouter);
+// Mount stock alerts under /stock
+app.use("/stock", stockAlertsRouter);
 app.use("/warehouses", warehousesRouter);
 
 const PORT = process.env.PORT || 3002;

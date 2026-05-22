@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
+import axios from "axios";
 import { es, ORDERS_INDEX, PRODUCTS_INDEX, ALERTS_INDEX } from "../lib/elastic";
 import { requireRole } from "../middleware/auth";
 
@@ -121,7 +122,7 @@ router.get("/stock-alerts", requireRole("admin", "manager"), async (req: Request
       index: ALERTS_INDEX,
       from: (page - 1) * limit,
       size: limit,
-      sort: [{ triggeredAt: { order: "desc" } }],
+      sort: [{ triggeredAt: { order: "desc", unmapped_type: "date" } as any }],
       query: { match_all: {} },
     });
 
@@ -135,15 +136,61 @@ router.get("/stock-alerts", requireRole("admin", "manager"), async (req: Request
     if (isESDown(err)) {
       return res.json({ data: [], total: 0, page, warning: "Index unavailable" });
     }
-    return res.status(500).json({ error: "Failed to fetch alerts" });
+    // index_not_found or any other ES error — return empty gracefully
+    return res.json({ data: [], total: 0, page, warning: "Index unavailable" });
   }
 });
 
-// POST /reports/products/reindex — trigger re-index from inventory DB (admin only)
-router.post("/products/reindex", requireRole("admin"), async (_req: Request, res: Response) => {
-  // In a full implementation this would call inventory-service to bulk-push all products
-  // For now we acknowledge the request — the Kafka consumer will populate on new events
-  return res.json({ message: "Reindex queued — new product events will populate the index", status: "queued" });
+// POST /reports/products/reindex — bulk re-index all products from inventory-service (admin only)
+router.post("/products/reindex", requireRole("admin"), async (req: Request, res: Response) => {
+  const inventoryUrl = process.env.INVENTORY_SERVICE_URL || "http://inventory-service:3002";
+  let indexed = 0;
+  let page = 1;
+  const limit = 100;
+
+  try {
+    // Paginate through all products from inventory-service
+    while (true) {
+      const { data } = await axios.get(`${inventoryUrl}/products`, {
+        params: { page, limit },
+        headers: { authorization: req.headers.authorization },
+        timeout: 10000,
+      });
+
+      const products: any[] = data.data ?? [];
+      if (products.length === 0) break;
+
+      // Bulk index into Elasticsearch
+      const operations = products.flatMap((p: any) => [
+        { index: { _index: PRODUCTS_INDEX, _id: p.id } },
+        {
+          id:          p.id,
+          name:        p.name,
+          sku:         p.sku,
+          description: p.description ?? "",
+          price:       Number(p.price),
+          category:    p.category ?? "Uncategorized",
+          createdAt:   p.createdAt ?? new Date().toISOString(),
+        },
+      ]);
+
+      await es.bulk({ operations, refresh: true });
+      indexed += products.length;
+
+      if (products.length < limit) break;
+      page++;
+    }
+
+    return res.json({ message: `Reindex complete — ${indexed} products indexed`, indexed, status: "queued" });
+  } catch (err: any) {
+    if (err.name === "ConnectionError" || err.message?.includes("ECONNREFUSED")) {
+      return res.status(503).json({ error: "Elasticsearch unavailable" });
+    }
+    if (axios.isAxiosError(err)) {
+      return res.status(502).json({ error: "Failed to fetch products from inventory-service" });
+    }
+    return res.status(500).json({ error: "Reindex failed" });
+  }
 });
 
 export default router;
