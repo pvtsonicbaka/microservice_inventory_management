@@ -1,4 +1,4 @@
-FROM node:22-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -6,9 +6,8 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:22-slim
+FROM node:22-bookworm-slim
 WORKDIR /app
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
