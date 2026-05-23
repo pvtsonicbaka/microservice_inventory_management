@@ -12,8 +12,18 @@ export const ALERTS_INDEX   = "stock_alerts";
 async function createIndex(index: string, mappings: object) {
   const exists = await es.indices.exists({ index });
   if (!exists) {
-    await es.indices.create({ index, mappings });
+    await es.indices.create({
+      index,
+      settings: { number_of_replicas: 0 },
+      mappings,
+    });
     logger.info(`Created ES index: ${index}`);
+  } else {
+    // Ensure replicas=0 for single-node setup
+    await es.indices.putSettings({
+      index,
+      settings: { number_of_replicas: 0 },
+    });
   }
 }
 
