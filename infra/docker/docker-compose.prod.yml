@@ -1,0 +1,195 @@
+services:
+  # ── Databases ──────────────────────────────────────────
+  auth-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  inventory-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  orders-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orders_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - orders-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Kafka ───────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ── Elasticsearch ───────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # ── Services (pre-built images from GHCR) ──────────────
+  auth-service:
+    image: ghcr.io/pvtsonicbaka/microservice_inventory_management/auth-service:latest
+    ports:
+      - "4001:3001"
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:password@auth-db:5432/auth_db
+      JWT_ACCESS_SECRET: super_secret_access_key_change_in_prod
+      JWT_REFRESH_SECRET: super_secret_refresh_key_change_in_prod
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  inventory-service:
+    image: ghcr.io/pvtsonicbaka/microservice_inventory_management/inventory-service:latest
+    ports:
+      - "4002:3002"
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://postgres:password@inventory-db:5432/inventory_db
+      AUTH_SERVICE_URL: http://auth-service:3001
+      KAFKA_BROKER: kafka:29092
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  orders-service:
+    image: ghcr.io/pvtsonicbaka/microservice_inventory_management/orders-service:latest
+    ports:
+      - "4003:3003"
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://postgres:password@orders-db:5432/orders_db
+      AUTH_SERVICE_URL: http://auth-service:3001
+      INVENTORY_SERVICE_URL: http://inventory-service:3002
+      KAFKA_BROKER: kafka:29092
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  reporting-service:
+    image: ghcr.io/pvtsonicbaka/microservice_inventory_management/reporting-service:latest
+    ports:
+      - "4004:3004"
+    environment:
+      PORT: 3004
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      KAFKA_BROKER: kafka:29092
+      AUTH_SERVICE_URL: http://auth-service:3001
+    depends_on:
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  api-gateway:
+    image: ghcr.io/pvtsonicbaka/microservice_inventory_management/api-gateway:latest
+    ports:
+      - "4000:3000"
+    environment:
+      PORT: 3000
+      JWT_ACCESS_SECRET: super_secret_access_key_change_in_prod
+      AUTH_SERVICE_URL: http://auth-service:3001
+      INVENTORY_SERVICE_URL: http://inventory-service:3002
+      ORDERS_SERVICE_URL: http://orders-service:3003
+      REPORTING_SERVICE_URL: http://reporting-service:3004
+    depends_on:
+      - auth-service
+      - inventory-service
+      - orders-service
+
+  admin-dashboard:
+    image: ghcr.io/pvtsonicbaka/microservice_inventory_management/admin-dashboard:latest
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  auth-db-data:
+  inventory-db-data:
+  orders-db-data:
+  zookeeper-data:
+  elasticsearch-data:
