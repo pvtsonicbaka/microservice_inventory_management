@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS builder
+FROM node:22-bookworm AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -6,13 +6,13 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:22-bookworm-slim
+FROM node:22-bookworm
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/prisma ./prisma
-# Regenerate Prisma client for the runtime environment
-RUN npx prisma generate
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x entrypoint.sh
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["./entrypoint.sh"]
