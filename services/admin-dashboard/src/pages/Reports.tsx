@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { api } from "../lib/api";
+import { reportingApi } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { TrendingUp, DollarSign, ShoppingCart, AlertTriangle, RefreshCw, BarChart2 } from "lucide-react";
 import Spinner from "../components/Spinner";
@@ -26,7 +26,7 @@ export default function Reports() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/reports/dashboard");
+      const res = await reportingApi.dashboard();
       setData(res.data);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;

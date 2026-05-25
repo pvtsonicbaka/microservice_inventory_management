@@ -56,8 +56,9 @@ export const usersApi = {
 
 // ── Products ──────────────────────────────────────────────────
 export const productsApi = {
-  list: (params?: { page?: number; limit?: number; category?: string }) =>
+  list: (params?: { page?: number; limit?: number; category?: string; search?: string }) =>
     api.get("/products", { params }),
+  seed: () => api.post("/products/seed"),
   get: (id: string) => api.get(`/products/${id}`),
   create: (data: { name: string; sku: string; price: number; description?: string; category?: string }) =>
     api.post("/products", data),

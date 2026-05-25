@@ -11,6 +11,7 @@ import Warehouses from "./pages/Warehouses";
 import Orders from "./pages/Orders";
 import StockAlerts from "./pages/StockAlerts";
 import Analytics from "./pages/Analytics";
+import Reports from "./pages/Reports";
 import Search from "./pages/Search";
 import Users from "./pages/Users";
 import PlaceOrder from "./pages/PlaceOrder";
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="orders" element={<Orders />} />
         <Route path="alerts" element={<StockAlerts />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="reports" element={<Reports />} />
         <Route path="search" element={<Search />} />
         <Route path="users" element={<Users />} />
         <Route path="place-order" element={<PlaceOrder />} />

@@ -20,6 +20,7 @@ const mainNavItems = [
 
 const reportingNavItems = [
   { to: "/analytics", label: "Analytics", icon: BarChart2, end: false, roles: ["admin", "manager", "viewer"] },
+  { to: "/reports", label: "Reports", icon: Settings, end: false, roles: ["admin", "manager"] },
   { to: "/search", label: "Search", icon: SearchIcon, end: false, roles: ["admin", "manager", "viewer"] },
 ];
 

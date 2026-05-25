@@ -22,8 +22,7 @@ productStockRouter.get("/stock", authenticate, async (req: Request, res: Respons
     where: { productId: req.params.id },
     include: { warehouse: true },
   });
-  if (!stock.length) return res.status(404).json({ error: "No stock found for this product" });
-
+  // Return empty array (not 404) when no stock records exist yet — product may be new
   const result = stock.map((s) => ({
     productId: s.productId,
     warehouseId: s.warehouseId,

@@ -5,22 +5,28 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/infra/docker/docker-compose.yml"
 
-echo "🐳 Starting all services..."
-sudo docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
-sudo docker compose -f "$COMPOSE_FILE" up -d --build
+# Use sudo only if current user is not in docker group
+DOCKER_CMD="docker"
+if ! docker info > /dev/null 2>&1; then
+  DOCKER_CMD="sudo docker"
+fi
 
-echo "⏳ Waiting for databases to be healthy (45s)..."
-sleep 45
+echo "🐳 Starting all services..."
+$DOCKER_CMD compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+$DOCKER_CMD compose -f "$COMPOSE_FILE" up -d --build
+
+echo "⏳ Waiting for databases to be healthy (60s)..."
+sleep 60
 
 echo "📦 Pushing database schemas..."
 
-# Auth schema
-sudo docker exec docker-auth-service-1 npx prisma db push --skip-generate 2>/dev/null \
+# Auth schema — try via service container first
+$DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T auth-service npx prisma db push --skip-generate 2>/dev/null \
   && echo "  ✅ auth schema pushed" \
   || echo "  ⚠️  auth schema push via service failed (may already exist)"
 
-# Inventory schema — push directly via DB container as it may crash before push
-sudo docker exec docker-inventory-db-1 psql -U postgres -d inventory_db -c "
+# Inventory schema — push directly via DB container
+$DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T inventory-db psql -U postgres -d inventory_db -c "
 CREATE TABLE IF NOT EXISTS \"Warehouse\" (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name TEXT NOT NULL,
@@ -57,15 +63,13 @@ CREATE INDEX IF NOT EXISTS \"StockAlert_productId_triggeredAt_idx\" ON \"StockAl
 " > /dev/null 2>&1 && echo "  ✅ inventory schema pushed"
 
 # Orders schema
-sudo docker exec docker-orders-service-1 npx prisma db push --skip-generate 2>/dev/null \
+$DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T orders-service npx prisma db push --skip-generate 2>/dev/null \
   && echo "  ✅ orders schema pushed" \
   || echo "  ⚠️  orders schema push via service failed (may already exist)"
 
 echo "🔄 Restarting services to pick up schemas..."
-sudo docker start docker-inventory-service-1 2>/dev/null || true
-sudo docker start docker-orders-service-1 2>/dev/null || true
-sudo docker start docker-reporting-service-1 2>/dev/null || true
-sleep 10
+$DOCKER_CMD compose -f "$COMPOSE_FILE" restart inventory-service orders-service reporting-service
+sleep 15
 
 echo "👤 Creating admin account..."
 RESULT=$(curl -s -X POST http://localhost:4001/auth/register \
@@ -75,12 +79,12 @@ RESULT=$(curl -s -X POST http://localhost:4001/auth/register \
 USER_ID=$(echo "$RESULT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
 if [ -n "$USER_ID" ]; then
-  sudo docker exec docker-auth-db-1 psql -U postgres -d auth_db \
+  $DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T auth-db psql -U postgres -d auth_db \
     -c "UPDATE \"User\" SET role='admin' WHERE email='admin@invenflow.com';" > /dev/null
   echo "✅ Admin created: admin@invenflow.com / Admin@123"
 else
   echo "⚠️  Admin may already exist — promoting..."
-  sudo docker exec docker-auth-db-1 psql -U postgres -d auth_db \
+  $DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T auth-db psql -U postgres -d auth_db \
     -c "UPDATE \"User\" SET role='admin' WHERE email='admin@invenflow.com';" > /dev/null 2>&1 || true
 fi
 

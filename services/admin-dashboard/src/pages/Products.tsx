@@ -65,7 +65,7 @@ export default function Products() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await productsApi.list({ page: p, limit: LIMIT });
+      const { data } = await productsApi.list({ page: p, limit: LIMIT, search: q || undefined });
       setProducts(data.data);
       setTotal(data.total);
     } catch {
@@ -84,9 +84,20 @@ export default function Products() {
   };
 
   const handleSeed = async () => {
-    if (!confirm("This will run the seed script to add demo products. Use scripts/seed.sh instead for full seeding.")) return;
-    setSeedMsg("✓ Run bash scripts/seed.sh to seed demo data");
-    setTimeout(() => setSeedMsg(""), 5000);
+    if (!confirm("Seed 12 demo products into the first available warehouse?")) return;
+    setSeeding(true);
+    setSeedMsg("");
+    try {
+      const { data } = await productsApi.seed();
+      setSeedMsg(`✓ Seeded ${data.created?.length ?? 0} products${data.skipped?.length ? ` (${data.skipped.length} skipped)` : ""}`);
+      load(1, search);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setSeedMsg(`✗ ${msg ?? "Seed failed — create a warehouse first"}`);
+    } finally {
+      setSeeding(false);
+      setTimeout(() => setSeedMsg(""), 6000);
+    }
   };
 
   const openCreate = () => {

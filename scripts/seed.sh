@@ -7,6 +7,13 @@
 AUTH="http://localhost:4001"
 INVENTORY="http://localhost:4002"
 GATEWAY="http://localhost:4000"
+COMPOSE_FILE="$(cd "$(dirname "$0")/.." && pwd)/infra/docker/docker-compose.yml"
+
+# Use sudo only if needed
+DOCKER_CMD="docker"
+if ! docker info > /dev/null 2>&1; then
+  DOCKER_CMD="sudo docker"
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -32,8 +39,8 @@ REGISTER=$(curl -s -X POST $AUTH/auth/register \
 ADMIN_ID=$(echo $REGISTER | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
 if [ -n "$ADMIN_ID" ]; then
-  # Promote to admin
-  sudo docker exec docker-auth-db-1 psql -U postgres -d auth_db \
+  # Promote to admin using compose service name (works regardless of container name)
+  $DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T auth-db psql -U postgres -d auth_db \
     -c "UPDATE \"User\" SET role='admin' WHERE email='admin@invenflow.com';" > /dev/null 2>&1
   pass "Admin created: admin@invenflow.com / Admin@123"
 else
@@ -69,7 +76,7 @@ MGR=$(curl -s -X POST $AUTH/auth/register \
   -d '{"email":"manager@invenflow.com","password":"Manager@123","name":"Sarah Manager"}')
 MGR_ID=$(echo $MGR | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$MGR_ID" ]; then
-  sudo docker exec docker-auth-db-1 psql -U postgres -d auth_db \
+  $DOCKER_CMD compose -f "$COMPOSE_FILE" exec -T auth-db psql -U postgres -d auth_db \
     -c "UPDATE \"User\" SET role='manager' WHERE email='manager@invenflow.com';" > /dev/null 2>&1
   pass "Manager created: manager@invenflow.com / Manager@123"
 fi
