@@ -52,7 +52,7 @@
 ```
                     ┌──────────────────────────────────────┐
                     │           CLIENT / BROWSER            │
-                    │        http://localhost:5173          │
+                    │        https://collie-gigabyte-freely.ngrok-free.dev          │
                     └─────────────────┬────────────────────┘
                                       │ HTTPS
                     ┌─────────────────▼────────────────────┐
@@ -166,7 +166,7 @@ This automatically:
 
 | URL | Description |
 |-----|-------------|
-| http://localhost:5173 | Admin Dashboard |
+| https://collie-gigabyte-freely.ngrok-free.dev | Admin Dashboard |
 | http://localhost:4000/health | API Gateway health |
 
 **Demo credentials:**
