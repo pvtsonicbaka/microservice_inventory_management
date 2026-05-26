@@ -2,243 +2,275 @@
 
 **Distributed, Resilient E-Commerce Backend Platform**
 
-| | |
-|---|---|
-| **Author** | @harsadash |
-| **Date** | March 2026 |
-| **Project Code** | lv1-2026-03-02 |
-| **Version** | 2.0 |
+| Field        | Details                  |
+| :----------- | :----------------------- |
+| **Author**   | @harsadash               |
+| **Date**     | March 2026               |
+| **Code**     | lv1-2026-03-02           |
+| **Version**  | 2.0                      |
+
+> *"Built like Amazon. Scaled like Shopify. Deployed like Netflix."*
 
 ---
 
-## 📌 Executive Summary
+## 📌 What is InvenFlow?
 
-A production-grade microservices-based inventory & order management system demonstrating service decomposition, event-driven communication, resilience patterns, API gateway usage, observability, and Kubernetes-ready deployment — mirroring architectures used at scale by Amazon and Shopify.
+InvenFlow is a **production-grade distributed backend** for e-commerce inventory operations. It's not just a CRUD app — it's a fully event-driven, fault-tolerant system with real resilience patterns, a Kafka event bus, Elasticsearch-powered search, and a React admin dashboard.
 
----
-
-## 1. Project Overview
-
-### Vision & Objectives
-
-Build a modular, independently deployable backend for e-commerce/retail inventory operations — handling product catalog, stock management, orders, and reporting with high availability and fault tolerance.
-
-### Target Users
-
-- E-commerce startups
-- Retail chains with multiple warehouses
-- Supply chain SaaS platforms
-
-### Business Value Delivered
-
-- Independent scaling of services (e.g., Orders vs Catalog)
-- Eventual consistency for stock updates via Kafka sagas
-- Zero-downtime deployments with Kubernetes HPA
-- Deep DevOps & distributed systems implementation
-
-### Non-Functional Goals
-
-| Goal | Target |
-|------|--------|
-| Throughput | ≥ 1,000 req/min per service |
-| Resilience | Circuit breaking, retries, timeouts |
-| Observability | Distributed tracing + structured logs |
-| Data consistency | Eventual via saga pattern |
+Think of it as the backend that powers a retail chain with multiple warehouses, thousands of products, and hundreds of concurrent orders — all running independently, all talking to each other through events.
 
 ---
 
-## 2. Key Features
+## 🎯 The Problem It Solves
 
-| ID | Feature | Description | Acceptance Criteria |
-|----|---------|-------------|---------------------|
-| F01 | API Gateway | JWT validation, rate limiting, routing | All requests routed correctly; JWT validated at edge |
-| F02 | Authentication | JWT issuance, refresh, role management | Register/login, token validation across services |
-| F03 | Inventory | Product CRUD, stock levels, low-stock alerts | Stock updates atomic; optimistic locking |
-| F04 | Orders | Order creation, status tracking, saga pattern | PENDING → CONFIRMED on stock success, FAILED on insufficient stock |
-| F05 | Event Bus | Async communication via Kafka | At-least-once delivery; idempotency |
-| F06 | Reporting & Search | Elasticsearch product search + analytics | Aggregations, faceted search, real-time metrics |
-| F07 | Resilience | Circuit breakers, retries, timeouts | Graceful degradation during partial failures |
-| F08 | Observability | Structured logging, correlation IDs | Request correlation ID across all services |
+| Problem                          | InvenFlow Solution                                          |
+| :------------------------------- | :---------------------------------------------------------- |
+| One crash takes everything down  | 5 isolated microservices — one fails, others keep running   |
+| Stock oversell under high load   | Atomic stock reservation before order confirmation          |
+| Slow product search              | Elasticsearch with sub-100ms full-text search               |
+| No visibility into failures      | Correlation IDs trace every request across all services     |
+| Scaling bottlenecks              | Kubernetes HPA scales each service independently            |
 
 ---
 
-## 3. Technology Stack
+## 🏗️ Architecture Overview
 
-| Category | Technology | Version | Rationale |
-|----------|-----------|:-------:|-----------|
-| Runtime | Node.js | 22 | LTS, high performance async I/O |
-| Language | TypeScript | 5.5+ | Type safety across all services |
-| HTTP Framework | Express | 4.19 | Lightweight, battle-tested |
-| ORM | Prisma | 5.14 | Type-safe DB access, migrations |
-| Database | PostgreSQL | 16 | ACID compliance per service |
-| Message Broker | Kafka (Confluent) | 7.6 | Durability, ordering guarantees |
-| Cache / Blacklist | Redis | 7 | JWT blacklist, rate limiting |
-| Search & Analytics | Elasticsearch | 8.14 | Full-text search, aggregations |
-| Auth | jsonwebtoken + bcryptjs | 9 / 2.4 | Industry standard JWT |
-| Validation | Zod | 3.23 | Runtime schema validation |
-| Frontend | React + Vite + Tailwind | 18 / 5 / 3 | Modern, fast admin UI |
-| Build System | Turborepo | 2 | Monorepo task orchestration |
-| Containers | Docker + Compose | — | Multi-stage builds |
-| Orchestration | Kubernetes + HPA | — | Production-grade scaling |
-| CI/CD | GitHub Actions | — | Matrix strategy, multi-platform builds |
+### Services & Ports
 
----
+| Service              | Port  | Role                                              |
+| :------------------- | :---: | :------------------------------------------------ |
+| Admin Dashboard      | 5173  | React + Vite + Tailwind UI                        |
+| API Gateway          | 4000  | JWT validation, rate limiting, routing            |
+| Auth Service         | 4001  | Users, roles, JWT issuance, Redis blacklist        |
+| Inventory Service    | 4002  | Products, stock, warehouses, low-stock alerts     |
+| Orders Service       | 4003  | Orders, saga orchestration, circuit breaker       |
+| Reporting Service    | 4004  | Elasticsearch search + analytics                  |
 
-## 4. Architecture
+### Infrastructure
 
-```
-                    ┌──────────────────────────────────────┐
-                    │           CLIENT / BROWSER            │
-                    │        http://localhost:5173          │
-                    └─────────────────┬────────────────────┘
-                                      │ HTTPS
-                    ┌─────────────────▼────────────────────┐
-                    │             API GATEWAY               │
-                    │   :4000  JWT · Rate Limit · CORS      │
-                    └──┬──────────┬──────────┬───────────┬─┘
-                       │          │          │           │
-          ┌────────────▼┐  ┌──────▼──────┐  ┌▼────────┐ ┌▼────────────┐
-          │AUTH SERVICE │  │  INVENTORY  │  │ ORDERS  │ │  REPORTING  │
-          │    :4001    │  │   SERVICE   │  │ SERVICE │ │   SERVICE   │
-          │ JWT · Redis │  │    :4002    │  │  :4003  │ │    :4004    │
-          │ Blacklist   │  │Products·   │  │Saga·    │ │ES Search·   │
-          └──────┬──────┘  │Stock·Alerts│  │Circuit  │ │Analytics    │
-                 │         └──────┬─────┘  │Breaker  │ └─────────────┘
-          ┌──────▼──────┐  ┌──────▼─────┐  └────┬────┘
-          │  auth_db    │  │inventory_db│  ┌─────▼─────┐
-          │ (Postgres)  │  │ (Postgres) │  │ orders_db │
-          └─────────────┘  └────────────┘  └───────────┘
+| Component          | Purpose                              |
+| :----------------- | :----------------------------------- |
+| PostgreSQL × 3     | One isolated database per service    |
+| Redis              | JWT blacklist + rate limiting        |
+| Kafka              | Event bus — 8 topics                 |
+| Elasticsearch      | Product search + order analytics     |
 
-                    ┌──────────────────────────────────────┐
-                    │           KAFKA EVENT BUS             │
-                    │  order.placed · stock.updated         │
-                    │  order.confirmed · order.cancelled    │
-                    │  stock.low-alert · product.*          │
-                    └──────────────────────────────────────┘
-```
+### Request Flow
 
-### Saga Pattern — Order Flow
+Every request from the browser goes through this path:
 
-```
-POST /orders
-  └─► Orders Service: create order (PENDING) → publish order.placed
-        └─► Inventory Service: check stock
-              ├── SUFFICIENT → reserve stock → publish stock.updated
-              │     └─► Orders Service: status = CONFIRMED
-              └── INSUFFICIENT → publish order.cancelled
-                    └─► Orders Service: status = FAILED (compensating transaction)
-```
+**Browser → API Gateway (JWT check) → Target Service → Database**
+
+The API Gateway is the single entry point. It validates the JWT token locally, applies rate limiting, and proxies the request to the correct service. Services never touch each other's databases.
 
 ---
 
-## 5. Services Overview
+## 📸 Screenshots
 
-| Service | Port | Description |
-|---------|:----:|-------------|
-| api-gateway | 4000 | Entry point — JWT validation, rate limiting, routing |
-| auth-service | 4001 | Users, roles, JWT issuance, Redis token blacklist |
-| inventory-service | 4002 | Products, stock, warehouses, low-stock alerts |
-| orders-service | 4003 | Orders, saga orchestration, circuit breaker |
-| reporting-service | 4004 | Elasticsearch search + analytics dashboard |
-| admin-dashboard | 5173 | React + Vite + Tailwind admin UI |
+### Dashboard Overview
+<!-- ADD SCREENSHOT: http://localhost:5173 — main dashboard with stats cards -->
 
----
+&nbsp;
 
-## 6. Detailed 28-Day Execution Timeline
+### Products Page
+<!-- ADD SCREENSHOT: http://localhost:5173/products — product list with stock levels -->
 
-### Week 1 — Architecture, Auth & Core Services
+&nbsp;
 
-| Day | Deliverable |
-|-----|-------------|
-| Day 1 | Domain-driven design, bounded contexts, service map, OpenAPI specs |
-| Day 2 | Monorepo setup (Turborepo), auth service boilerplate + JWT |
-| Day 3 | PostgreSQL schema + Prisma migrations, inventory service CRUD |
-| Day 4 | API Gateway setup + routing rules + JWT validation middleware |
-| Day 5 | Docker Compose for local dev (all services + DB + Redis) |
-| Day 6 | Basic inter-service call (Inventory → Auth validation) |
-| Day 7 | Week 1 tag, Postman collection, local smoke test |
+### Place Order Flow
+<!-- ADD SCREENSHOT: http://localhost:5173/place-order — order creation form -->
 
-### Week 2 — Event-Driven Core & Orders
+&nbsp;
 
-| Day | Deliverable |
-|-----|-------------|
-| Day 8–9 | Kafka setup + topics (order.placed, stock.updated) |
-| Day 10 | Orders service — order creation flow |
-| Day 11 | Saga implementation (compensating transactions) |
-| Day 12 | Event consumers in Inventory & Orders services |
-| Day 13 | React admin dashboard bootstrap + auth |
-| Day 14 | End-to-end order placement test |
+### Orders & Saga Status
+<!-- ADD SCREENSHOT: http://localhost:5173/orders — order list with CONFIRMED/FAILED status -->
 
-### Week 3 — Resilience, Search & Analytics
+&nbsp;
 
-| Day | Deliverable |
-|-----|-------------|
-| Day 15 | Circuit breakers + retries (custom implementation) |
-| Day 16 | Elasticsearch integration + product indexing |
-| Day 17 | Search endpoint + faceted filters |
-| Day 18 | Reporting service + analytics dashboards |
-| Day 19 | ELK logging setup + correlation IDs |
-| Day 20 | Chaos testing (kill service, network delay) |
-| Day 21 | Week 3 tag + resilience report |
+### Analytics & Reports
+<!-- ADD SCREENSHOT: http://localhost:5173/analytics — charts and KPI cards -->
 
-### Week 4 — Orchestration & Production
+&nbsp;
 
-| Day | Deliverable |
-|-----|-------------|
-| Day 22 | Kubernetes manifests for all services |
-| Day 23 | Ingress + HPA configuration |
-| Day 24 | GitHub Actions multi-service CI/CD pipeline |
-| Day 25 | Deploy to cluster + live demo |
-| Day 26 | Grafana dashboards + alerts |
-| Day 27 | Demo video recording |
-| Day 28 | Final QA, README, PDF export |
+### Search (Elasticsearch)
+<!-- ADD SCREENSHOT: http://localhost:5173/search — product search with filters -->
+
+&nbsp;
+
+### Stock Alerts
+<!-- ADD SCREENSHOT: http://localhost:5173/alerts — low stock alert list -->
+
+&nbsp;
+
+### API Gateway Health Check
+<!-- ADD SCREENSHOT: curl http://localhost:4000/health — all services up -->
+
+&nbsp;
 
 ---
 
-## 7. Technical Highlights
+## ⚡ The Saga Pattern — How Orders Work
 
-### Security (OWASP Mitigations)
+No distributed locks. No 2-phase commit. Just events.
 
-| Concern | Mitigation |
-|---------|-----------|
-| JWT forgery | HS256 with strong secrets; validated on every request |
-| Token replay after logout | Redis blacklist keyed by JTI with TTL |
-| Brute force login | Auth rate limiter: 50 req/15min per IP |
-| SQL injection | Prisma parameterized queries — no raw SQL |
-| Oversized payloads | express.json({ limit: "10kb" }) on all routes |
-| CORS | Allowlist-based origin validation |
-| Role escalation | requireRole() middleware on all sensitive routes |
-| Secrets in repo | .env.example only; actual secrets via environment variables |
+### Happy Path (Stock Available)
 
-### Resilience Patterns
+| Step | Service             | Action                                            |
+| :--: | :------------------ | :------------------------------------------------ |
+|  1   | Orders Service      | Creates order with status **PENDING**             |
+|  2   | Orders Service      | Publishes `order.placed` to Kafka                 |
+|  3   | Inventory Service   | Receives event, checks available stock            |
+|  4   | Inventory Service   | Reserves stock atomically (prevents oversell)     |
+|  5   | Inventory Service   | Publishes `stock.updated` to Kafka                |
+|  6   | Orders Service      | Receives event, updates status → **CONFIRMED** ✅ |
 
-- **Circuit Breaker** — Opens after 5 failures, recovers after 30s (CLOSED → OPEN → HALF_OPEN)
-- **Saga Pattern** — Compensating transactions for distributed order flow
-- **Graceful Degradation** — Elasticsearch down returns empty results with warning, never 500
-- **Kafka Retry** — Exponential backoff: 10 retries, 300ms initial, factor 2
-- **Rate Limiting** — 100 req/min global, 50 req/15min on auth endpoints
-- **Graceful Shutdown** — SIGTERM handling, clean Kafka disconnect, zero message loss
+### Failure Path (Insufficient Stock)
 
-### Observability
+| Step | Service             | Action                                            |
+| :--: | :------------------ | :------------------------------------------------ |
+|  1   | Orders Service      | Creates order with status **PENDING**             |
+|  2   | Orders Service      | Publishes `order.placed` to Kafka                 |
+|  3   | Inventory Service   | Receives event, checks stock — not enough         |
+|  4   | Inventory Service   | Publishes `order.cancelled` to Kafka              |
+|  5   | Orders Service      | Receives event, updates status → **FAILED** ❌    |
 
-- Structured JSON logging across all services with consistent fields (timestamp, level, service, msg, correlationId)
-- x-correlation-id header propagated through every request and Kafka event
-- Health check endpoint on every service returning service status
-- Request duration logged on every response
-
-### Performance
-
-- Turborepo build caching — only rebuilds changed services
-- Multi-stage Docker builds — lean production images
-- Elasticsearch for sub-100ms product search
-- Redis for O(1) JWT blacklist lookups
-- Stock reservation (not immediate deduction) prevents oversell under load
+No stock was ever deducted. The compensating transaction is automatic.
 
 ---
 
-## 8. Deployment & Operations
+## 🛡️ Resilience — Built for Failure
 
-### Local Setup
+### Circuit Breaker States
+
+| State      | Behaviour                              | Trigger                    |
+| :--------- | :------------------------------------- | :------------------------- |
+| CLOSED     | Requests pass through normally         | Default state              |
+| OPEN       | Requests fail immediately with 503     | 5 consecutive failures     |
+| HALF-OPEN  | One probe request allowed              | After 30 second timeout    |
+
+### What Happens When Each Service Goes Down
+
+| Service Down        | Impact                                              | Recovery                               |
+| :------------------ | :-------------------------------------------------- | :------------------------------------- |
+| auth-service        | Login fails, existing sessions still work           | Auto-restart via Docker                |
+| inventory-service   | Gateway returns 503, circuit breaker opens          | Auto-restart, circuit closes after 30s |
+| orders-service      | Order placement fails, products/auth still work     | Auto-restart                           |
+| elasticsearch       | Search returns empty + warning, no crash            | Graceful degradation                   |
+| kafka               | Events queue up, services retry with backoff        | Reconnects automatically               |
+
+### Kafka Retry Policy
+
+| Setting          | Value                              |
+| :--------------- | :--------------------------------- |
+| Max retries      | 10                                 |
+| Initial delay    | 300ms                              |
+| Backoff factor   | 2x (300 → 600 → 1200 → ...)        |
+| Max wait         | ~5 minutes total                   |
+
+---
+
+## 🔒 Security — OWASP Covered
+
+| Threat                      | Protection                                                  |
+| :-------------------------- | :---------------------------------------------------------- |
+| JWT forgery                 | HS256 signed tokens, validated on every request             |
+| Token replay after logout   | Redis blacklist keyed by JTI with TTL = remaining lifetime  |
+| Brute force attacks         | 50 requests per 15 minutes on auth endpoints                |
+| SQL injection               | Prisma ORM — zero raw SQL queries                           |
+| Payload attacks             | 10KB body limit on all routes                               |
+| Unauthorized access         | Role-based middleware: admin / manager / viewer             |
+| CORS attacks                | Strict origin allowlist                                     |
+| Secrets in repo             | .env.example only — no secrets committed to git             |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer           | Technology                  | Version   | Why                                    |
+| :-------------- | :-------------------------- | :-------: | :------------------------------------- |
+| Runtime         | Node.js                     | 22        | Latest LTS, fast async I/O             |
+| Language        | TypeScript                  | 5.5+      | Type safety across all services        |
+| API Framework   | Express                     | 4.19      | Lightweight, battle-tested             |
+| Database        | PostgreSQL                  | 16        | ACID compliance per service            |
+| ORM             | Prisma                      | 5.14      | Type-safe queries, auto migrations     |
+| Events          | Kafka (Confluent)           | 7.6       | Durable, ordered, at-least-once        |
+| Cache           | Redis                       | 7         | JWT blacklist, rate limiting           |
+| Search          | Elasticsearch               | 8.14      | Full-text, faceted, aggregations       |
+| Frontend        | React + Vite + Tailwind     | 18/5/3    | Fast, modern admin UI                  |
+| Build           | Turborepo                   | 2         | Monorepo caching                       |
+| Containers      | Docker + Compose            | —         | Multi-stage builds                     |
+| Orchestration   | Kubernetes + HPA            | —         | Auto-scaling in production             |
+| CI/CD           | GitHub Actions              | —         | Matrix builds, multi-platform          |
+
+---
+
+## 📅 28-Day Build Timeline
+
+### Week 1 — Foundation
+
+| Day | Deliverable                                          |
+| :-: | :--------------------------------------------------- |
+|  1  | Domain design, bounded contexts, OpenAPI specs       |
+|  2  | Turborepo monorepo, auth service + JWT               |
+|  3  | Prisma schemas, inventory CRUD                       |
+|  4  | API Gateway + JWT middleware                         |
+|  5  | Full Docker Compose stack                            |
+|  6  | Inter-service auth validation                        |
+|  7  | Postman collection + smoke test                      |
+
+### Week 2 — Event-Driven Core
+
+| Day  | Deliverable                                          |
+| :--: | :--------------------------------------------------- |
+| 8–9  | Kafka setup, topics, producers/consumers             |
+|  10  | Orders service + creation flow                       |
+|  11  | Saga pattern + compensating transactions             |
+|  12  | Kafka consumers in inventory + orders                |
+|  13  | React admin dashboard + auth                         |
+|  14  | End-to-end order placement test                      |
+
+### Week 3 — Resilience & Search
+
+| Day | Deliverable                                          |
+| :-: | :--------------------------------------------------- |
+|  15 | Circuit breakers + retries + timeouts                |
+|  16 | Elasticsearch + product indexing                     |
+|  17 | Search endpoint + faceted filters                    |
+|  18 | Reporting service + analytics                        |
+|  19 | Structured logging + correlation IDs                 |
+|  20 | Chaos testing — kill services, check recovery        |
+|  21 | Resilience report                                    |
+
+### Week 4 — Production
+
+| Day | Deliverable                                          |
+| :-: | :--------------------------------------------------- |
+|  22 | Kubernetes manifests (15 files)                      |
+|  23 | Ingress + HPA configuration                          |
+|  24 | GitHub Actions CI/CD pipeline                        |
+|  25 | Live deployment                                      |
+|  26 | Grafana dashboards                                   |
+|  27 | Demo video                                           |
+|  28 | Final QA + README + PDF                              |
+
+---
+
+## 🧪 Testing — 134 Tests Total
+
+| Suite                | Tests   | What's Covered                                        |
+| :------------------- | :-----: | :---------------------------------------------------- |
+| auth-service         |   18    | Register, login, validate, refresh, logout, RBAC      |
+| inventory-service    |   22    | Products CRUD, stock ops, warehouses, alerts          |
+| orders-service       |   16    | Saga flow, cancellation, RBAC, ownership              |
+| reporting-service    |   35    | Search, dashboard, pagination, ES degradation         |
+| Smoke test           |   23    | Full gateway to service flow                          |
+| E2E saga test        |   10    | Register → order → CONFIRMED → stock deducted         |
+| Chaos test           |   10    | Kill services, rate limit, correlation ID             |
+| **Total**            | **134** |                                                       |
+
+---
+
+## 🚀 Running It Locally
 
 ```bash
 git clone https://github.com/pvtsonicbaka/microservice_inventory_management
@@ -246,81 +278,70 @@ cd microservice_inventory_management
 bash setup.sh
 ```
 
-### Demo Credentials
+Open **http://localhost:5173** and login with:
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@invenflow.com | Admin@123 |
-| Manager | manager@invenflow.com | Manager@123 |
-| Viewer | viewer@invenflow.com | Viewer@123 |
-
-### Access Points
-
-| URL | Description |
-|-----|-------------|
-| http://localhost:5173 | Admin Dashboard |
-| http://localhost:4000/health | API Gateway health |
-| http://localhost:4001 | Auth Service |
-| http://localhost:4002 | Inventory Service |
-| http://localhost:4003 | Orders Service |
-| http://localhost:4004 | Reporting Service |
-
-### CI/CD Pipeline
-
-- **Lint & type check** — 5 backend services + dashboard in parallel
-- **Integration tests** — auth service against live PostgreSQL + Redis
-- **Docker build & push** — 6 images to ghcr.io (linux/amd64 + linux/arm64)
-- **Smoke test** — 23-check full stack integration test (main branch only)
-
-### Kubernetes
-
-- 15 manifests covering all services, databases, ingress
-- HPA: api-gateway scales 2→8 pods, orders-service 2→10 pods
-- One-command deploy: `bash infra/k8s/deploy.sh`
+| Role         | Email                    | Password     |
+| :----------- | :----------------------- | :----------- |
+| 👑 Admin     | admin@invenflow.com      | Admin@123    |
+| 💼 Manager   | manager@invenflow.com    | Manager@123  |
+| 👁 Viewer    | viewer@invenflow.com     | Viewer@123   |
 
 ---
 
-## 9. Testing
+## ☸️ Kubernetes — Production Ready
 
-| Suite | Tests | Coverage |
-|-------|:-----:|---------|
-| auth-service | 18 | Register, login, validate, refresh, logout, RBAC |
-| inventory-service | 22 | Products CRUD, stock ops, warehouses, alerts |
-| orders-service | 16 | Saga flow, cancellation, RBAC, ownership |
-| reporting-service | 35 | Search, dashboard, pagination, ES degradation |
-| Smoke test | 23 | Full gateway → service flow |
-| E2E saga test | 10 | Register → order → CONFIRMED → stock deducted |
-| Chaos test | 10 | Kill services, rate limit, correlation ID |
-| **Total** | **134** | |
+### HPA Configuration
+
+| Service              | Min Pods | Max Pods | CPU Target |
+| :------------------- | :------: | :------: | :--------: |
+| api-gateway          |    2     |    8     |    60%     |
+| auth-service         |    2     |    6     |    70%     |
+| inventory-service    |    2     |    8     |    70%     |
+| orders-service       |    2     |    10    |    70%     |
+| reporting-service    |    1     |    4     |    70%     |
+
+### CI/CD Pipeline Stages
+
+| Stage                | What Happens                                                    |
+| :------------------- | :-------------------------------------------------------------- |
+| Lint & Type Check    | 5 backend services + dashboard checked in parallel              |
+| Integration Tests    | Auth service tested against live PostgreSQL + Redis             |
+| Docker Build & Push  | 6 images pushed to ghcr.io (linux/amd64 + linux/arm64)          |
+| Smoke Test           | 23-check full stack integration test (main branch only)         |
 
 ---
 
-## 10. Personal Reflection
+## 💡 Personal Reflection
 
-### Key Learnings
+### What I Learned
 
-Building this system taught me that distributed systems require explicit handling of partial failures — circuit breakers and sagas are not optional extras, they are core to correctness. Event-driven architecture decouples services beautifully but demands careful idempotency design to avoid double-processing. Observability through correlation IDs made debugging across service boundaries practical rather than guesswork.
+This project changed how I think about software. Before, I thought microservices were just "splitting a monolith." Now I understand they're a completely different mental model — you design for failure, not against it.
 
-### Industry Best Practices Applied
+The hardest part wasn't writing code. It was understanding **why** things fail in distributed systems and designing the system to handle those failures gracefully. The circuit breaker pattern, the saga pattern, idempotency — these aren't fancy buzzwords. They're solutions to real problems I hit while building this.
 
-- Domain-driven design with clear bounded contexts per service
-- 12-factor app principles — config via env vars, stateless services, disposability
-- GitOps with semantic commit messages and automated CI/CD on every push
-- Security-first design — JWT blacklisting, rate limiting, parameterized queries
+### Biggest Challenges
 
-### Challenges Faced & Solved
+**1. Prisma + Docker on ARM64**
+The Prisma query engine binary was compiled for OpenSSL 1.1.x but the container had OpenSSL 3.x. Spent hours debugging before realizing the fix was switching the base Docker image from `node:22-bookworm-slim` to `node:22-bookworm` which ships with OpenSSL pre-installed.
 
-- **Prisma + ARM64 Docker** — OpenSSL version mismatch between build and runtime; solved by switching to node:22-bookworm base image with OpenSSL 3.x pre-installed
-- **Saga consistency** — Ensuring stock reservation and order confirmation stay in sync across Kafka events; solved with atomic Prisma transactions and idempotency checks
-- **Elasticsearch degradation** — Reporting service needed to stay functional when ES was down; solved with Promise.allSettled and graceful fallback responses
+**2. Saga Consistency**
+Making sure stock reservation and order confirmation stay in sync across two services communicating via Kafka was tricky. The solution was atomic Prisma transactions + idempotency checks on the consumer side.
 
-### Future Roadmap
+**3. Elasticsearch Graceful Degradation**
+The reporting service needed to keep working even when Elasticsearch was down. Used `Promise.allSettled` instead of `Promise.all` so one failing ES query doesn't crash the entire dashboard.
 
-- Add Prometheus + Grafana metrics dashboards
-- Implement distributed tracing with Jaeger
-- Add webhook support for external integrations
-- Implement bulk product import/export via CSV
-- Add real-time notifications via WebSockets
+### What I'd Do Differently
+
+- Add Prometheus + Grafana from day 1, not as an afterthought
+- Use Prisma migrations instead of `db push` for production
+- Add distributed tracing with Jaeger earlier in the project
+
+### What's Next
+
+- Real-time notifications via WebSockets
+- Bulk product import/export via CSV
+- Grafana dashboards with custom metrics
+- Load testing with k6 to validate the 1,000 req/min target
 
 ---
 
